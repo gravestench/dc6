@@ -1,6 +1,9 @@
 package pkg
 
 import (
+	"image/color"
+	"math"
+
 	"github.com/gravestench/bitstream"
 )
 
@@ -28,6 +31,7 @@ type DC6 struct {
 	FramesPerDirection uint32
 	FramePointers      []uint32 // size is Directions*FramesPerDirection
 	Frames             []*Frame // size is Directions*FramesPerDirection
+	palette            color.Palette
 }
 
 // FromBytes uses restruct to read the binary dc6 data into structs then parses image data from the frame data.
@@ -75,14 +79,14 @@ func (d *DC6) decodeHeader() (err error) {
 }
 
 func (d *DC6) decodeBody() (err error) {
-	const terminatorSize  = 3
+	const terminatorSize = 3
 
 	frameCount := int(d.Directions * d.FramesPerDirection)
 
 	d.Frames = make([]*Frame, frameCount)
 
 	for i := 0; i < frameCount; i++ {
-		frame := &Frame{}
+		frame := &Frame{dc6: d}
 
 		// toss the errors, only check last err
 		frame.Flipped, _ = d.stream.Next(4).Bytes().AsUInt32()
@@ -103,11 +107,19 @@ func (d *DC6) decodeBody() (err error) {
 		d.Frames[i] = frame
 	}
 
+	d.decodeFrames()
+
 	return nil
 }
 
-// DecodeFrame decodes the given frame to an indexed color texture
-func (d *DC6) DecodeFrame(frameIndex int) []byte {
+// decodeFrame decodes the given frame to an indexed color texture
+func (d *DC6) decodeFrames() {
+	for idx := range d.Frames {
+		d.decodeFrame(idx)
+	}
+}
+
+func (d *DC6) decodeFrame(frameIndex int) {
 	frame := d.Frames[frameIndex]
 
 	indexData := make([]byte, frame.Width*frame.Height)
@@ -142,7 +154,7 @@ loop: // this is a label for the loop, so the switch can break the loop (and not
 		}
 	}
 
-	return indexData
+	frame.IndexData = indexData
 }
 
 func scanlineType(b int) scanlineState {
@@ -170,4 +182,31 @@ func (d *DC6) Clone() *DC6 {
 	}
 
 	return &clone
+}
+
+// Palette returns the current color palette
+func (d *DC6) Palette() color.Palette {
+	return d.palette
+}
+
+// SetPalette sets the current color palette
+func (d *DC6) SetPalette(p color.Palette) {
+	if p == nil {
+		p = d.getDefaultPalette()
+	}
+
+	d.palette = p
+}
+
+func (d *DC6) getDefaultPalette() color.Palette {
+	const numColors = 256
+
+	palette := make(color.Palette, numColors)
+
+	for idx := range palette {
+		rgb := uint8(idx)
+		palette[idx] = color.RGBA{rgb, rgb, rgb, math.MaxUint8}
+	}
+
+	return palette
 }
