@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 
@@ -22,104 +23,131 @@ const (
 
 // DC6 represents a DC6 file.
 type DC6 struct {
-	stream             *bitstream.Reader
-	Version            int32
-	Flags              uint32
-	Encoding           uint32
-	Termination        []byte // 4 bytes
-	Directions         uint32
-	FramesPerDirection uint32
-	FramePointers      []uint32 // size is Directions*FramesPerDirection
-	Frames             []*Frame // size is Directions*FramesPerDirection
-	palette            color.Palette
+	Version     int32
+	Flags       uint32
+	Encoding    uint32
+	Termination []byte // 4 bytes
+	Directions  []*Direction
+	palette     color.Palette
+}
+
+type Direction struct {
+	Frames []*Frame // size is Directions*FramesPerDirection
 }
 
 // FromBytes uses restruct to read the binary dc6 data into structs then parses image data from the frame data.
 func FromBytes(data []byte) (result *DC6, err error) {
-	result = &DC6{
-		stream: bitstream.NewReader().FromBytes(data...),
-	}
+	result = &DC6{}
 
-	if err = result.decodeHeader(); err != nil {
+	stream := bitstream.NewReader().FromBytes(data...)
+
+	if err = result.decodeHeader(stream); err != nil {
 		return nil, err
 	}
 
-	if err = result.decodeBody(); err != nil {
+	if err = result.decodeBody(stream); err != nil {
 		return nil, err
 	}
 
 	return result, nil
 }
 
-func (d *DC6) decodeHeader() (err error) {
-	const terminationSize = 4
+func (d *DC6) decodeHeader(stream *bitstream.Reader) (err error) {
+	const (
+		versionBytes     = 4
+		flagsBytes       = 4
+		encodingBytes    = 4
+		terminationBytes = 4
+	)
 
 	// only check last err
-	d.Version, _ = d.stream.Next(4).Bytes().AsInt32()
-	d.Flags, _ = d.stream.Next(4).Bytes().AsUInt32()
-	d.Encoding, _ = d.stream.Next(4).Bytes().AsUInt32()
-	d.Termination, _ = d.stream.Next(terminationSize).Bytes().AsBytes()
-	d.Directions, _ = d.stream.Next(4).Bytes().AsUInt32()
-	d.FramesPerDirection, err = d.stream.Next(4).Bytes().AsUInt32()
+	d.Version, _ = stream.Next(versionBytes).Bytes().AsInt32()
+	d.Flags, _ = stream.Next(flagsBytes).Bytes().AsUInt32()
+	d.Encoding, _ = stream.Next(encodingBytes).Bytes().AsUInt32()
+	d.Termination, err = stream.Next(terminationBytes).Bytes().AsBytes()
 
-	if err != nil {
-		return err
-	}
+	return err
+}
 
-	frameCount := int(d.Directions * d.FramesPerDirection)
+func (d *DC6) decodeBody(stream *bitstream.Reader) (err error) {
+	const (
+		terminatorSize          = 3
+		directionsBytes         = 4
+		framesPerDirectionBytes = 4
+		framePointerBytes       = 4
+	)
 
-	d.FramePointers = make([]uint32, frameCount)
-	for i := 0; i < frameCount; i++ {
-		if d.FramePointers[i], err = d.stream.Next(4).Bytes().AsUInt32(); err != nil {
+	const (
+		frameFlippedBytes   = 4
+		frameWidthBytes     = 4
+		frameHeightBytes    = 4
+		frameOffsetXBytes   = 4
+		frameOffsetYBytes   = 4
+		frameUnknownBytes   = 4
+		frameNextBlockBytes = 4
+		frameLengthBytes    = 4
+	)
+
+	numDirections, _ := stream.Next(directionsBytes).Bytes().AsUInt32()
+	framesPerDirection, err := stream.Next(framesPerDirectionBytes).Bytes().AsUInt32()
+	totalFrames := int(numDirections * framesPerDirection)
+
+	d.Directions = make([]*Direction, numDirections)
+
+	for i := 0; i < totalFrames; i++ {
+		if _, err = stream.Next(framePointerBytes).Bytes().AsUInt32(); err != nil {
 			return err
 		}
 	}
 
-	return nil
-}
+	for idx := 0; idx < totalFrames; idx++ {
+		dirIdx := idx / int(framesPerDirection)
+		frameIdx := idx % int(framesPerDirection)
 
-func (d *DC6) decodeBody() (err error) {
-	const terminatorSize = 3
+		if d.Directions[dirIdx] == nil {
+			d.Directions[dirIdx] = &Direction{}
+		}
 
-	frameCount := int(d.Directions * d.FramesPerDirection)
+		if d.Directions[dirIdx].Frames == nil {
+			d.Directions[dirIdx].Frames = make([]*Frame, framesPerDirection)
+		}
 
-	d.Frames = make([]*Frame, frameCount)
-
-	for i := 0; i < frameCount; i++ {
 		frame := &Frame{dc6: d}
 
 		// toss the errors, only check last err
-		frame.Flipped, _ = d.stream.Next(4).Bytes().AsUInt32()
-		frame.Width, _ = d.stream.Next(4).Bytes().AsUInt32()
-		frame.Height, _ = d.stream.Next(4).Bytes().AsUInt32()
-		frame.OffsetX, _ = d.stream.Next(4).Bytes().AsInt32()
-		frame.OffsetY, _ = d.stream.Next(4).Bytes().AsInt32()
-		frame.Unknown, _ = d.stream.Next(4).Bytes().AsUInt32()
-		frame.NextBlock, _ = d.stream.Next(4).Bytes().AsUInt32()
-		frame.Length, _ = d.stream.Next(4).Bytes().AsUInt32()
-		frame.FrameData, _ = d.stream.Next(int(frame.Length)).Bytes().AsBytes()
-		frame.Terminator, err = d.stream.Next(terminatorSize).Bytes().AsBytes()
+		frame.Flipped, _ = stream.Next(frameFlippedBytes).Bytes().AsUInt32()
+		frame.Width, _ = stream.Next(frameWidthBytes).Bytes().AsUInt32()
+		frame.Height, _ = stream.Next(frameHeightBytes).Bytes().AsUInt32()
+		frame.OffsetX, _ = stream.Next(frameOffsetXBytes).Bytes().AsInt32()
+		frame.OffsetY, _ = stream.Next(frameOffsetYBytes).Bytes().AsInt32()
+		frame.Unknown, _ = stream.Next(frameUnknownBytes).Bytes().AsUInt32()
+		frame.NextBlock, _ = stream.Next(frameNextBlockBytes).Bytes().AsUInt32()
+		frame.Length, _ = stream.Next(frameLengthBytes).Bytes().AsUInt32()
+		frame.FrameData, _ = stream.Next(int(frame.Length)).Bytes().AsBytes()
+		frame.Terminator, err = stream.Next(terminatorSize).Bytes().AsBytes()
 
 		if err != nil {
-			return err
+			return fmt.Errorf("could not decode body, %w", err)
 		}
 
-		d.Frames[i] = frame
+		d.Directions[dirIdx].Frames[frameIdx] = frame
 	}
 
-	d.decodeFrames()
+	for idx := range d.Directions {
+		d.Directions[idx].decodeFrames()
+	}
 
 	return nil
 }
 
 // decodeFrame decodes the given frame to an indexed color texture
-func (d *DC6) decodeFrames() {
+func (d *Direction) decodeFrames() {
 	for idx := range d.Frames {
 		d.decodeFrame(idx)
 	}
 }
 
-func (d *DC6) decodeFrame(frameIndex int) {
+func (d *Direction) decodeFrame(frameIndex int) {
 	frame := d.Frames[frameIndex]
 
 	indexData := make([]byte, frame.Width*frame.Height)
@@ -172,13 +200,16 @@ func scanlineType(b int) scanlineState {
 // Clone creates a copy of the DC6
 func (d *DC6) Clone() *DC6 {
 	clone := *d
-	copy(clone.Termination, d.Termination)
-	copy(clone.FramePointers, d.FramePointers)
-	clone.Frames = make([]*Frame, len(d.Frames))
 
-	for i := range d.Frames {
-		cloneFrame := *d.Frames[i]
-		clone.Frames = append(clone.Frames, &cloneFrame)
+	copy(clone.Termination, d.Termination)
+
+	clone.Directions = make([]*Direction, len(d.Directions))
+	for dirIdx := range d.Directions {
+		clone.Directions[dirIdx].Frames = make([]*Frame, len(d.Directions[dirIdx].Frames))
+		for frameIdx := range d.Directions[dirIdx].Frames {
+			frame := *d.Directions[dirIdx].Frames[frameIdx]
+			clone.Directions[dirIdx].Frames[frameIdx] = &frame
+		}
 	}
 
 	return &clone
@@ -186,6 +217,10 @@ func (d *DC6) Clone() *DC6 {
 
 // Palette returns the current color palette
 func (d *DC6) Palette() color.Palette {
+	if d.palette == nil {
+		d.SetPalette(nil)
+	}
+
 	return d.palette
 }
 
@@ -205,7 +240,10 @@ func (d *DC6) getDefaultPalette() color.Palette {
 
 	for idx := range palette {
 		rgb := uint8(idx)
-		palette[idx] = color.RGBA{rgb, rgb, rgb, math.MaxUint8}
+		c := color.RGBA{}
+		c.R, c.G, c.B, c.A = rgb, rgb, rgb, math.MaxUint8
+
+		palette[idx] = c
 	}
 
 	return palette
