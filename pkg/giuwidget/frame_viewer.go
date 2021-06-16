@@ -1,78 +1,122 @@
-package giu_widget
+package giuwidget
 
 import (
 	"fmt"
 	"image"
+	"log"
 
 	"github.com/AllenDang/giu"
 
 	dc6 "github.com/gravestench/dc6/pkg"
 )
 
-func FrameViewer(id string, d *dc6.DC6, tl TextureLoader) giu.Widget {
-	return &frameViewer{
-		id:  id,
-		dc6: d,
-		tl:  tl,
+func FrameViewer(id string, d *dc6.DC6) *FrameViewerDC6 {
+	return &FrameViewerDC6{
+		id:            id,
+		dc6:           d,
+		textureLoader: newTextureLoader(),
 	}
 }
 
-var _ giu.Widget = &frameViewer{}
+var _ giu.Widget = &FrameViewerDC6{}
 
 type frameViewerState struct {
 	direction, frame int
 	scale            float64
+	images           []*image.RGBA
 	textures         []*giu.Texture
 }
 
 func (fvs *frameViewerState) Dispose() {
-
+	// noop
 }
 
-type frameViewer struct {
-	id    string
-	dc6   *dc6.DC6
-	state *frameViewerState
-	tl    TextureLoader
+type FrameViewerDC6 struct {
+	id            string
+	dc6           *dc6.DC6
+	state         *frameViewerState
+	textureLoader TextureLoader
 }
 
-func (fv *frameViewer) Build() {
-	s := fv.getState()
-	if s == nil {
-		return
+func (p *FrameViewerDC6) Build() {
+	const (
+		imageW, imageH = 10, 10
+	)
+
+	p.textureLoader.ResumeLoadingTextures()
+	p.textureLoader.ProcessTextureLoadRequests()
+
+	viewerState := p.getState()
+
+	imageScale := viewerState.scale
+
+	dirIdx := 0
+	frameIdx := 0
+
+	textureIdx := dirIdx*len(p.dc6.Directions[dirIdx].Frames) + frameIdx
+
+	err := giu.Context.GetRenderer().SetTextureMagFilter(giu.TextureFilterNearest)
+	if err != nil {
+		log.Print(err)
 	}
 
-	fv.state = s
+	var frameImage *giu.ImageWidget
 
-	absIndex := (int(fv.dc6.Directions) * s.direction) + s.frame
-	frame := fv.dc6.Frames[absIndex]
-	w, h := float32(float64(frame.Width)*s.scale), float32(float64(frame.Height)*s.scale)
-
-	var texture *giu.Texture
-
-	if s.textures != nil && absIndex < len(s.textures) {
-		texture = s.textures[absIndex]
+	if viewerState.textures == nil || len(viewerState.textures) <= int(frameIdx) || viewerState.textures[frameIdx] == nil {
+		frameImage = giu.Image(nil).Size(imageW, imageH)
+	} else {
+		bw := p.dc6.Directions[dirIdx].Frames[frameIdx].Width
+		bh := p.dc6.Directions[dirIdx].Frames[frameIdx].Height
+		w := float32(float64(bw) * imageScale)
+		h := float32(float64(bh) * imageScale)
+		frameImage = giu.Image(viewerState.textures[textureIdx]).Size(w, h)
 	}
 
-	layout := giu.Layout{
-		giu.Custom(func() {
-			if texture == nil {
-				return
-			}
+	//numDirections := len(p.dc6.Directions)
+	//numFrames := len(p.dc6.Directions[0].Frames)
 
-			giu.Image(texture)
-		}),
-		giu.Dummy(w, h),
-	}
-
-	layout.Build()
+	giu.Layout{frameImage}.Build()
 }
 
-func (fv *frameViewer) getStateID() string {
+//func (fv *FrameViewerDC6) Build() {
+//	s := fv.getState()
+//	if s == nil {
+//		return
+//	}
+//
+//	fv.state = s
+//
+//	absIndex := (len(fv.dc6.Directions) * s.direction) + s.frame
+//
+//	frame := fv.dc6.Directions[s.direction].Frames[s.frame]
+//	w, h := float32(float64(frame.Width)*s.scale), float32(float64(frame.Height)*s.scale)
+//
+//	layout := giu.Layout{
+//		giu.Custom(func() {
+//			if s.textures == nil {
+//				return
+//			}
+//
+//			if len(s.textures) <= absIndex {
+//				return
+//			}
+//
+//			giu.Image(s.textures[absIndex]).Size(w, h)
+//		}),
+//		giu.Dummy(w, h),
+//	}
+//
+//	fv.ResumeLoadingTextures()
+//	fv.ProcessTextureLoadRequests()
+//
+//	layout.Build()
+//}
+
+func (fv *FrameViewerDC6) getStateID() string {
 	return fmt.Sprintf("widget_%s", fv.id)
 }
 
-func (fv *frameViewer) getState() *frameViewerState {
+func (fv *FrameViewerDC6) getState() *frameViewerState {
 	var state *frameViewerState
 
 	s := giu.Context.GetState(fv.getStateID())
@@ -87,50 +131,39 @@ func (fv *frameViewer) getState() *frameViewerState {
 	return state
 }
 
-func (fv *frameViewer) initState() {
-	if fv.dc6 == nil {
-		return
+func (fv *FrameViewerDC6) SetScale(scale float64) {
+	s := fv.getState()
+
+	if scale <= 0 {
+		scale = 1.0
 	}
 
-	// Prevent multiple invocation to LoadImage.
-	newState := &frameViewerState{
-		direction: 0,
-		frame:     0,
-		scale:     1.0,
-		textures:  make([]*giu.Texture, 0),
-	}
+	s.scale = scale
 
-	fv.setState(newState)
-
-	go func() {
-		numFrames := int(fv.dc6.Directions * fv.dc6.FramesPerDirection)
-		textures := make([]*giu.Texture, numFrames)
-
-		for frameIndex := 0; frameIndex < numFrames; frameIndex++ {
-			fidx := frameIndex
-			frame := fv.dc6.Frames[fidx]
-
-			img := image.NewRGBA(image.Rectangle{
-				Max: frame.Bounds().Size(),
-			})
-
-			for py := 0; py < int(frame.Height); py++ {
-				for px := 0; px < int(frame.Width); px++ {
-					img.Set(px, py, frame.At(px, py))
-				}
-			}
-
-			fv.tl.CreateTextureFromARGB(img, func(t *giu.Texture) {
-				textures[fidx] = t
-			})
-		}
-
-		s := fv.getState()
-		s.textures = textures
-		fv.setState(s)
-	}()
+	fv.setState(s)
 }
 
-func (fv *frameViewer) setState(s giu.Disposable) {
+func (fv *FrameViewerDC6) setState(s giu.Disposable) {
 	giu.Context.SetState(fv.getStateID(), s)
+}
+
+func dirLookup(dir, numDirs int) int {
+	d4 := []int{0, 1, 2, 3}
+	d8 := []int{0, 5, 1, 6, 2, 7, 3, 4}
+	d16 := []int{0, 9, 5, 10, 1, 11, 6, 12, 2, 13, 7, 14, 3, 15, 4, 8}
+
+	lookup := []int{0}
+
+	switch numDirs {
+	case 4:
+		lookup = d4
+	case 8:
+		lookup = d8
+	case 16:
+		lookup = d16
+	default:
+		dir = 0
+	}
+
+	return lookup[dir]
 }

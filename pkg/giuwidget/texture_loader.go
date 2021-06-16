@@ -1,37 +1,33 @@
-package giu_widget
+package giuwidget
 
 import (
 	"bytes"
 	"fmt"
+	"image"
+	"image/draw"
+	"image/png"
 	"io"
 	"log"
 	"sync"
 
-	"image"
-	"image/draw"
-	"image/png"
-
-	g "github.com/AllenDang/giu"
-
 	"github.com/enriquebris/goconcurrentqueue"
+
+	"github.com/AllenDang/giu"
 )
 
 // TextureLoadRequestItem represents texture request item
 type TextureLoadRequestItem struct {
 	rgb      *image.RGBA
-	callback func(*g.Texture)
+	callback func(*giu.Texture)
 }
 
 // TextureLoader represents a texture loader
 type TextureLoader interface {
-	// controls
 	StopLoadingTextures()
 	ResumeLoadingTextures()
 	ProcessTextureLoadRequests()
-
-	// creators
-	CreateTextureFromARGB(*image.RGBA, func(*g.Texture))
-	CreateTextureFromFile([]byte, func(*g.Texture))
+	CreateTextureFromARGB(*image.RGBA, func(*giu.Texture))
+	CreateTextureFromFile([]byte, func(*giu.Texture))
 }
 
 // textureLoader allows app to load textures and avoid unexpected panics
@@ -41,8 +37,8 @@ type textureLoader struct {
 	loadQueue       *goconcurrentqueue.FIFO
 }
 
-// NewTextureLoader creates a new texture loader
-func NewTextureLoader() TextureLoader {
+// newTextureLoader creates a new texture loader
+func newTextureLoader() TextureLoader {
 	result := &textureLoader{}
 	result.canLoadTextures = false
 	result.mutex = &sync.Mutex{}
@@ -88,9 +84,9 @@ func (t *textureLoader) ProcessTextureLoadRequests() {
 
 			loadRequest := item.(TextureLoadRequestItem)
 
-			var texture *g.Texture
+			var texture *giu.Texture
 
-			if texture, err = g.NewTextureFromRgba(loadRequest.rgb); err != nil {
+			if texture, err = giu.NewTextureFromRgba(loadRequest.rgb); err != nil {
 				log.Fatal(err)
 			}
 
@@ -100,12 +96,12 @@ func (t *textureLoader) ProcessTextureLoadRequests() {
 }
 
 // CreateTextureFromARGB creates a texture fromo color given
-func (t *textureLoader) CreateTextureFromARGB(rgb *image.RGBA, callback func(*g.Texture)) {
+func (t *textureLoader) CreateTextureFromARGB(rgb *image.RGBA, callback func(*giu.Texture)) {
 	t.addTextureToLoadQueue(rgb, callback)
 }
 
 // CreateTextureFromFile creates a texture using io.Reader given
-func (t *textureLoader) CreateTextureFromFile(fileData []byte, cb func(*g.Texture)) {
+func (t *textureLoader) CreateTextureFromFile(fileData []byte, cb func(*giu.Texture)) {
 	fileReader := bytes.NewReader(fileData)
 
 	rgba, err := convertToImage(fileReader)
@@ -116,7 +112,7 @@ func (t *textureLoader) CreateTextureFromFile(fileData []byte, cb func(*g.Textur
 	t.CreateTextureFromARGB(rgba, cb)
 }
 
-func (t *textureLoader) addTextureToLoadQueue(rgb *image.RGBA, callback func(*g.Texture)) {
+func (t *textureLoader) addTextureToLoadQueue(rgb *image.RGBA, callback func(*giu.Texture)) {
 	err := t.loadQueue.Enqueue(TextureLoadRequestItem{
 		rgb:      rgb,
 		callback: callback,
