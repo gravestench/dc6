@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	dc6 "github.com/gravestench/dc6/pkg"
+	dc6lib "github.com/gravestench/dc6/pkg"
 	gpl "github.com/gravestench/gpl/pkg"
 )
 
@@ -24,13 +24,10 @@ type options struct {
 func main() {
 	var o options
 
-	parseOptions(&o)
-
-	//dc6BaseName := path.Base(*o.dc6Path)
-	//dc6FileName := fileNameWithoutExt(dc6BaseName)
-
-	//palBaseName := path.Base(*o.palPath)
-	//palFileName := fileNameWithoutExt(palBaseName)
+	if parseOptions(&o) {
+		flag.Usage()
+		return
+	}
 
 	dc6Data, err := ioutil.ReadFile(*o.dc6Path)
 	if err != nil {
@@ -40,40 +37,43 @@ func main() {
 		return
 	}
 
-	d, err := dc6.FromBytes(dc6Data)
+	dc6, err := dc6lib.FromBytes(dc6Data)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	palData, err := ioutil.ReadFile(*o.palPath)
-	if err != nil {
-		fmt.Println(err)
-		return
+	if *o.palPath != "" {
+		palData, err := ioutil.ReadFile(*o.palPath)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		gplInstance, err := gpl.Decode(bytes.NewBuffer(palData))
+		if err != nil {
+			fmt.Println("palette is not a GIMP palette file...")
+			return
+		}
+
+		dc6.SetPalette(color.Palette(*gplInstance))
 	}
 
-	gplInstance, err := gpl.Decode(bytes.NewBuffer(palData))
-	if err != nil {
-		fmt.Println("palette is not a GIMP palette file...")
-		return
-	}
+	numDirections := len(dc6.Directions)
+	framesPerDir := len(dc6.Directions[0].Frames)
+	isMultiFrame := numDirections > 1 || framesPerDir > 1
 
 	outfilePath := *o.pngPath
-	if d.Directions > 1 || d.FramesPerDirection > 1 {
+	if isMultiFrame {
 		noExt := fileNameWithoutExt(outfilePath)
 		outfilePath = noExt + "_d%v_f%v.png"
 	}
 
-	d.SetPalette(color.Palette(*gplInstance))
-
-	for dirIdx := 0; dirIdx < int(d.Directions); dirIdx++ {
-		startIdx := dirIdx * int(d.FramesPerDirection)
-		stopIdx := startIdx + int(d.FramesPerDirection)
-		frames := d.Frames[startIdx:stopIdx]
-
-		for frameIdx := range frames {
+	for dirIdx := range dc6.Directions {
+		for frameIdx := range dc6.Directions[dirIdx].Frames {
 			outPath := outfilePath
-			if d.Directions > 1 || d.FramesPerDirection > 1 {
+
+			if isMultiFrame {
 				outPath = fmt.Sprintf(outfilePath, dirIdx, frameIdx)
 			}
 
@@ -82,7 +82,7 @@ func main() {
 				log.Fatal(err)
 			}
 
-			if err := png.Encode(f, frames[frameIdx]); err != nil {
+			if err := png.Encode(f, dc6.Directions[dirIdx].Frames[frameIdx]); err != nil {
 				_ = f.Close()
 				log.Fatal(err)
 			}
@@ -95,7 +95,7 @@ func main() {
 }
 
 func parseOptions(o *options) (terminate bool) {
-	o.dc6Path = flag.String("dc6", "", "input dc6 file (required)")
+	o.dc6Path = flag.String("dc6lib", "", "input dc6lib file (required)")
 	o.palPath = flag.String("pal", "", "input pal file (optional)")
 	o.pngPath = flag.String("png", "", "path to png file (optional)")
 
