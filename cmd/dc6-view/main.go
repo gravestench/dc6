@@ -10,8 +10,8 @@ import (
 
 	"github.com/AllenDang/giu"
 
-	pdc6lib "github.com/gravestench/dc6/pkg"
-	dc6widget "github.com/gravestench/dc6/pkg/giuwidget"
+	pdc6lib "github.com/OpenDiablo2/dc6/pkg"
+	dc6widget "github.com/OpenDiablo2/dc6/pkg/giuwidget"
 	gpl "github.com/gravestench/gpl/pkg"
 )
 
@@ -60,7 +60,7 @@ func main() {
 			return
 		}
 
-		dc6.SetPalette(color.Palette(*gplInstance))
+		dc6.SetPalette(color.Palette(gplInstance))
 	}
 
 	f0 := dc6.Directions[0].Frames[0]
@@ -80,14 +80,14 @@ func main() {
 
 	windowTitle := fmt.Sprintf("%s - %s", title, path.Base(srcPath))
 
-	window := giu.NewMasterWindow(windowTitle, w, h, windowFlags, nil)
+	window := giu.NewMasterWindow(windowTitle, w, h, windowFlags)
 	id := fmt.Sprintf("%s##%s", windowTitle, "dc6")
 
 	viewer := dc6widget.FrameViewer(id, dc6)
 	viewer.SetScale(*o.scale)
 
 	window.Run(func() {
-		giu.SingleWindow(windowTitle).Layout(viewer)
+		giu.SingleWindow().Layout(viewer)
 	})
 }
 

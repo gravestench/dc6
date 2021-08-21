@@ -2,3 +2,4 @@
 .idea/*
 *.png
 *.dc6
+.DS_Store

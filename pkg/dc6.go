@@ -5,7 +5,7 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/gravestench/bitstream"
+	"github.com/OpenDiablo2/bitstream"
 )
 
 const (

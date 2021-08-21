@@ -7,7 +7,7 @@ import (
 
 	"github.com/AllenDang/giu"
 
-	dc6 "github.com/gravestench/dc6/pkg"
+	dc6 "github.com/OpenDiablo2/dc6/pkg"
 )
 
 func FrameViewer(id string, d *dc6.DC6) *FrameViewerDC6 {
