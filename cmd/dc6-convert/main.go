@@ -11,8 +11,9 @@ import (
 	"os"
 	"path/filepath"
 
-	dc6lib "github.com/OpenDiablo2/dc6/pkg"
 	gpl "github.com/gravestench/gpl/pkg"
+
+	dc6lib "github.com/gravestench/dc6/pkg"
 )
 
 type options struct {
