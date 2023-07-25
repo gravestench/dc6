@@ -10,9 +10,10 @@ import (
 
 	"github.com/AllenDang/giu"
 
-	pdc6lib "github.com/OpenDiablo2/dc6/pkg"
-	dc6widget "github.com/OpenDiablo2/dc6/pkg/giuwidget"
 	gpl "github.com/gravestench/gpl/pkg"
+
+	lib "github.com/gravestench/dc6/pkg"
+	widget "github.com/gravestench/dc6/pkg/giuwidget"
 )
 
 const (
@@ -41,7 +42,7 @@ func main() {
 		return
 	}
 
-	dc6, err := pdc6lib.FromBytes(fileContents)
+	dc6, err := lib.FromBytes(fileContents)
 	if err != nil {
 		fmt.Print(err)
 		return
@@ -83,7 +84,7 @@ func main() {
 	window := giu.NewMasterWindow(windowTitle, w, h, windowFlags)
 	id := fmt.Sprintf("%s##%s", windowTitle, "dc6")
 
-	viewer := dc6widget.FrameViewer(id, dc6)
+	viewer := widget.FrameViewer(id, dc6)
 	viewer.SetScale(*o.scale)
 
 	window.Run(func() {
