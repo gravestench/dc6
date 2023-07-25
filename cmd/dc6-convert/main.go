@@ -30,7 +30,7 @@ func main() {
 		return
 	}
 
-	dc6Data, err := ioutil.ReadFile(*o.dc6Path)
+	dc6Data, err := os.ReadFile(*o.dc6Path)
 	if err != nil {
 		const fmtErr = "could not read file, %v"
 		fmt.Print(fmt.Errorf(fmtErr, err))
@@ -96,7 +96,7 @@ func main() {
 }
 
 func parseOptions(o *options) (terminate bool) {
-	o.dc6Path = flag.String("dc6lib", "", "input dc6lib file (required)")
+	o.dc6Path = flag.String("dc6", "", "input dc6 file (required)")
 	o.palPath = flag.String("pal", "", "input pal file (optional)")
 	o.pngPath = flag.String("png", "", "path to png file (optional)")
 
