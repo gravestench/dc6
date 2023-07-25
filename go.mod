@@ -1,4 +1,4 @@
-module github.com/gravestench/dc6/pkg
+module github.com/gravestench/dc6
 
 go 1.19
 
