@@ -9,11 +9,10 @@ import (
 	"path"
 
 	"github.com/AllenDang/giu"
-
-	gpl "github.com/gravestench/gpl/pkg"
+	"github.com/gravestench/gpl"
 
 	"github.com/gravestench/dc6"
-	dc6Widget "github.com/gravestench/dc6/pkg/giuwidget"
+	"github.com/gravestench/dc6/pkg/giuwidget"
 )
 
 const (
@@ -83,8 +82,8 @@ func main() {
 
 	window := giu.NewMasterWindow(windowTitle, w, h, windowFlags)
 	id := fmt.Sprintf("%s##%s", windowTitle, "dc6")
-
-	viewer := dc6Widget.FrameViewer(id, dc6)
+	
+	viewer := giuwidget.FrameViewer(id, dc6)
 	viewer.SetScale(*o.scale)
 
 	window.Run(func() {
