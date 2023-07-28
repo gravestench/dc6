@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/AllenDang/giu v0.6.2
 	github.com/enriquebris/goconcurrentqueue v0.7.0
-	github.com/gravestench/bitstream v0.0.0-20230725041847-d02b4f2bac63
+	github.com/gravestench/bitstream v0.0.0-20230728184458-917abdef8ae3
 	github.com/gravestench/gpl v0.0.0-20230725161559-fe12f2cbd18e
 )
 
