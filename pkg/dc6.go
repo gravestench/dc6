@@ -174,7 +174,10 @@ loop: // this is a label for the loop, so the switch can break the loop (and not
 			x += transparentPixels
 		case runOfOpaquePixels:
 			for i := 0; i < b; i++ {
-				indexData[x+y*int(frame.Width)+i] = frame.FrameData[offset]
+				index := x + y*int(frame.Width) + i
+				if index <= len(indexData) {
+					indexData[index] = frame.FrameData[offset]
+				}
 				offset++
 			}
 
