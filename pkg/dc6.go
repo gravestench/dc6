@@ -157,6 +157,10 @@ func (d *Direction) decodeFrame(frameIndex int) {
 
 loop: // this is a label for the loop, so the switch can break the loop (and not the switch)
 	for {
+		if offset >= len(frame.FrameData) {
+			break
+		}
+		
 		b := int(frame.FrameData[offset])
 		offset++
 
