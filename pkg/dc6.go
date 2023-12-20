@@ -160,7 +160,7 @@ loop: // this is a label for the loop, so the switch can break the loop (and not
 		if offset >= len(frame.FrameData) {
 			break
 		}
-		
+
 		b := int(frame.FrameData[offset])
 		offset++
 
@@ -179,7 +179,7 @@ loop: // this is a label for the loop, so the switch can break the loop (and not
 		case runOfOpaquePixels:
 			for i := 0; i < b; i++ {
 				index := x + y*int(frame.Width) + i
-				if index <= len(indexData) {
+				if index <= len(indexData) && offset < len(frame.FrameData) {
 					indexData[index] = frame.FrameData[offset]
 				}
 				offset++
